@@ -1,0 +1,14 @@
+run:
+  deadline: 2m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+  - gofmt
+  - goimports
+  - golint
+  - gosimple
+  - ineffassign
+  - misspell
+  - govet
