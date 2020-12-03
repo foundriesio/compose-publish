@@ -233,7 +233,7 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	blobStore := repo.Blobs(ctx)
 	desc, err := blobStore.Put(ctx, "application/tar+gzip", buff)
 	if err != nil {
-		return nil
+		return err
 	}
 	fmt.Println("  |-> app: ", desc.Digest.String())
 
