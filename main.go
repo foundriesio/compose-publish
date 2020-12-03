@@ -25,6 +25,7 @@ const banner = `
 
 func main() {
 	var file string
+	var digestFile string
 
 	fmt.Print(banner)
 	app := &commandLine.App{
@@ -38,13 +39,20 @@ func main() {
 				Usage:       "Load Compose file `FILE`",
 				Destination: &file,
 			},
+			&commandLine.StringFlag{
+				Name:        "digest-file",
+				Aliases:     []string{"d"},
+				Required:    false,
+				Usage:       "Save sha256 digest of bundle to a file",
+				Destination: &digestFile,
+			},
 		},
 		Action: func(c *commandLine.Context) error {
 			target := c.Args().Get(0)
 			if len(target) == 0 {
 				return errors.New("Missing required argument: TARGET:[TAG]")
 			}
-			return doPublish(file, target)
+			return doPublish(file, target, digestFile)
 		},
 	}
 
@@ -79,7 +87,7 @@ func loadProj(file string, config map[string]interface{}) (*compose.Project, err
 	})
 }
 
-func doPublish(file, target string) error {
+func doPublish(file, target, digestFile string) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -110,5 +118,12 @@ func doPublish(file, target string) error {
 	}
 
 	fmt.Println("= Publishing app...")
-	return internal.CreateApp(ctx, config, target)
+	dgst, err := internal.CreateApp(ctx, config, target)
+	if err != nil {
+		return err
+	}
+	if len(digestFile) > 0 {
+		return ioutil.WriteFile(digestFile, []byte(dgst), 0o640)
+	}
+	return nil
 }

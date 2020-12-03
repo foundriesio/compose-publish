@@ -192,20 +192,20 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateApp(ctx context.Context, config map[string]interface{}, target string) error {
+func CreateApp(ctx context.Context, config map[string]interface{}, target string) (string, error) {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	buff, err := createTgz(pinned, "./")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	named, err := reference.ParseNormalizedNamed(target)
 	if err != nil {
-		return err
+		return "", err
 	}
 	tag := "latest"
 	if tagged, ok := reference.TagNameOnly(named).(reference.Tagged); ok {
@@ -215,36 +215,36 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	regc := NewRegistryClient()
 	repo, err := regc.GetRepository(ctx, named)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	blobStore := repo.Blobs(ctx)
 	desc, err := blobStore.Put(ctx, "application/tar+gzip", buff)
 	if err != nil {
-		return err
+		return "", err
 	}
 	fmt.Println("  |-> app: ", desc.Digest.String())
 
 	mb := ocischema.NewManifestBuilder(blobStore, []byte{}, map[string]string{"compose-app": "v1"})
 	if err := mb.AppendReference(desc); err != nil {
-		return err
+		return "", err
 	}
 
 	manifest, err := mb.Build(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	svc, err := repo.Manifests(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	putOptions := []distribution.ManifestServiceOption{distribution.WithTag(tag)}
 	digest, err := svc.Put(ctx, manifest, putOptions...)
 	if err != nil {
-		return err
+		return "", err
 	}
 	fmt.Println("  |-> manifest: ", digest.String())
 
-	return err
+	return digest.String(), err
 }
