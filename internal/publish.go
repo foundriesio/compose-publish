@@ -13,6 +13,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	compose "github.com/compose-spec/compose-go/types"
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest/manifestlist"
 	"github.com/docker/distribution/manifest/ocischema"
@@ -22,33 +23,20 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}) error {
+func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project) error {
 	regc := NewRegistryClient()
-	for name, obj := range services {
+
+	return proj.WithServices(nil, func(s compose.ServiceConfig) error {
+		name := s.Name
+		obj := services[name]
 		svc, ok := obj.(map[string]interface{})
 		if !ok {
 			return fmt.Errorf("Service(%s) has invalid format", name)
 		}
-		obj, ok := svc["image"]
-		if !ok {
-			return fmt.Errorf("Service(%s) missing 'image' attribute", name)
-		}
-		image, ok := obj.(string)
-		if !ok {
-			return fmt.Errorf("Service(%s) invalid 'image' attribute", name)
-		}
 
-		// We can't rely on the normal interpolation logic used in
-		// compose-ref, so we have to do the best we can here.
-		if image[0] == '$' {
-			if image[1] != '{' || image[len(image)-1] != '}' {
-				return fmt.Errorf("Invalid image reference(%s). This does not look like a properly format ${variable-defval}", image)
-			}
-			parts := strings.SplitAfterN(image, "-", 2)
-			if len(parts) != 2 {
-				return fmt.Errorf("Invalid image reference(%s). Variable does not appear to have a default value", image)
-			}
-			image = parts[1][:len(parts[1])-1] //Strip off the }
+		image := s.Image
+		if len(image) == 0 {
+			return fmt.Errorf("Service(%s) missing 'image' attribute", name)
 		}
 
 		fmt.Printf("Pinning %s(%s)\n", name, image)
@@ -103,8 +91,8 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 
 		fmt.Println("\n  |-> ", pinned)
 		svc["image"] = pinned
-	}
-	return nil
+		return nil
+	})
 }
 
 func getIgnores(appDir string) []string {

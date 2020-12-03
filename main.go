@@ -7,8 +7,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/compose-spec/compose-go/loader"
+	compose "github.com/compose-spec/compose-go/types"
 	"github.com/docker/docker/client"
 	commandLine "github.com/urfave/cli/v2"
 
@@ -61,6 +63,22 @@ func getClient() (*client.Client, error) {
 	return cli, nil
 }
 
+func loadProj(file string, config map[string]interface{}) (*compose.Project, error) {
+	env := make(map[string]string)
+	for _, val := range os.Environ() {
+		parts := strings.Split(val, "=")
+		env[parts[0]] = parts[1]
+	}
+
+	var files []compose.ConfigFile
+	files = append(files, compose.ConfigFile{Filename: file, Config: config})
+	return loader.Load(compose.ConfigDetails{
+		WorkingDir:  ".",
+		ConfigFiles: files,
+		Environment: env,
+	})
+}
+
 func doPublish(file, target string) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
@@ -77,12 +95,17 @@ func doPublish(file, target string) error {
 
 	ctx := context.Background()
 
+	proj, err := loadProj(file, config)
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("= Pinning service images...")
 	svcs, ok := config["services"]
 	if !ok {
 		return errors.New("Unable to find 'services' section of compose file")
 	}
-	if err := internal.PinServiceImages(cli, ctx, svcs.(map[string]interface{})); err != nil {
+	if err := internal.PinServiceImages(cli, ctx, svcs.(map[string]interface{}), proj); err != nil {
 		return err
 	}
 
