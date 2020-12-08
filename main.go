@@ -26,6 +26,7 @@ const banner = `
 func main() {
 	var file string
 	var digestFile string
+	var dryRun bool
 
 	fmt.Print(banner)
 	app := &commandLine.App{
@@ -46,13 +47,19 @@ func main() {
 				Usage:       "Save sha256 digest of bundle to a file",
 				Destination: &digestFile,
 			},
+			&commandLine.BoolFlag{
+				Name:        "dryrun",
+				Required:    false,
+				Usage:       "Show what would be done, but don't actually publish",
+				Destination: &dryRun,
+			},
 		},
 		Action: func(c *commandLine.Context) error {
 			target := c.Args().Get(0)
 			if len(target) == 0 {
 				return errors.New("Missing required argument: TARGET:[TAG]")
 			}
-			return doPublish(file, target, digestFile)
+			return doPublish(file, target, digestFile, dryRun)
 		},
 	}
 
@@ -87,7 +94,7 @@ func loadProj(file string, config map[string]interface{}) (*compose.Project, err
 	})
 }
 
-func doPublish(file, target, digestFile string) error {
+func doPublish(file, target, digestFile string, dryRun bool) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -118,7 +125,7 @@ func doPublish(file, target, digestFile string) error {
 	}
 
 	fmt.Println("= Publishing app...")
-	dgst, err := internal.CreateApp(ctx, config, target)
+	dgst, err := internal.CreateApp(ctx, config, target, dryRun)
 	if err != nil {
 		return err
 	}

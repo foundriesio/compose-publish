@@ -192,7 +192,7 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateApp(ctx context.Context, config map[string]interface{}, target string) (string, error) {
+func CreateApp(ctx context.Context, config map[string]interface{}, target string, dryRun bool) (string, error) {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
 		return "", err
@@ -216,6 +216,11 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	repo, err := regc.GetRepository(ctx, named)
 	if err != nil {
 		return "", err
+	}
+
+	if dryRun {
+		fmt.Println("Skipping publishing for dryrun")
+		return "", nil
 	}
 
 	blobStore := repo.Blobs(ctx)
