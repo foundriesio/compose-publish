@@ -31,6 +31,10 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		obj := services[name]
 		svc, ok := obj.(map[string]interface{})
 		if !ok {
+			if name == "extensions" {
+				fmt.Println("Hacking around https://github.com/compose-spec/compose-go/issues/91")
+				return nil
+			}
 			return fmt.Errorf("Service(%s) has invalid format", name)
 		}
 
