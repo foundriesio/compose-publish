@@ -223,7 +223,10 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	}
 
 	if dryRun {
+		fmt.Println("Pinned compose:")
+		fmt.Println(string(pinned))
 		fmt.Println("Skipping publishing for dryrun")
+
 		return "", nil
 	}
 
