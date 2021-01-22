@@ -23,20 +23,28 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project) error {
-	regc := NewRegistryClient()
-
+func iterateServices(services map[string]interface{}, proj *compose.Project, fn compose.ServiceFunc) error {
 	return proj.WithServices(nil, func(s compose.ServiceConfig) error {
-		name := s.Name
-		obj := services[name]
-		svc, ok := obj.(map[string]interface{})
+		obj := services[s.Name]
+		_, ok := obj.(map[string]interface{})
 		if !ok {
-			if name == "extensions" {
+			if s.Name == "extensions" {
 				fmt.Println("Hacking around https://github.com/compose-spec/compose-go/issues/91")
 				return nil
 			}
-			return fmt.Errorf("Service(%s) has invalid format", name)
+			return fmt.Errorf("Service(%s) has invalid format", s.Name)
 		}
+		return fn(s)
+	})
+}
+
+func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project) error {
+	regc := NewRegistryClient()
+
+	return iterateServices(services, proj, func(s compose.ServiceConfig) error {
+		name := s.Name
+		obj := services[name]
+		svc, ok := obj.(map[string]interface{})
 
 		image := s.Image
 		if len(image) == 0 {
