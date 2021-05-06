@@ -113,19 +113,20 @@ func PinServiceConfigs(cli *client.Client, ctx context.Context, services map[str
 		obj := services[s.Name]
 		svc := obj.(map[string]interface{})
 
-		marshalled, err := yaml.Marshal(s)
+		marshalled, err := yaml.Marshal(svc)
 		if err != nil {
 			return err
+		}
+
+		h := sha256.New()
+		if _, err := h.Write(marshalled); err != nil {
+			return fmt.Errorf("Unexpected error hashing service config for %s", s.Name)
 		}
 
 		labels, ok := svc["labels"]
 		if !ok {
 			labels = make(map[string]interface{})
 			svc["labels"] = labels
-		}
-		h := sha256.New()
-		if _, err := h.Write(marshalled); err != nil {
-			return fmt.Errorf("Unexpected error hashing service config for %s", s.Name)
 		}
 		labels.(map[string]interface{})["io.compose-spec.config-hash"] = fmt.Sprintf("%x", h.Sum(nil))
 		return nil
