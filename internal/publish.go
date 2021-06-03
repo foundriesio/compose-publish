@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -171,6 +172,11 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 				return fmt.Errorf("Tar: Can't tar non regular types yet: %s", header.Name)
 			}
 		}
+		// reset the file's timestamps, otherwise hashes of the resultant TGZs will differ
+		// even if their content is the same
+		header.ChangeTime = time.Time{}
+		header.AccessTime = time.Time{}
+		header.ModTime = time.Time{}
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
