@@ -124,7 +124,7 @@ func doPublish(file, target, digestFile string, dryRun bool) error {
 		return err
 	}
 
-	fmt.Println("= Hashing services")
+	fmt.Println("== Hashing services...")
 	if err := internal.PinServiceConfigs(cli, ctx, svcs.(map[string]interface{}), proj); err != nil {
 		return err
 	}
