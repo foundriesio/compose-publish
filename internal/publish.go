@@ -6,11 +6,12 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -23,6 +24,7 @@ import (
 	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/archive"
 )
 
 func iterateServices(services map[string]interface{}, proj *compose.Project, fn compose.ServiceFunc) error {
@@ -134,7 +136,7 @@ func PinServiceConfigs(cli *client.Client, ctx context.Context, services map[str
 func getIgnores(appDir string) []string {
 	file, err := os.Open(filepath.Join(appDir, ".composeappignores"))
 	if err != nil {
-		return nil
+		return []string{}
 	}
 	ignores, _ := dockerignore.ReadAll(file)
 	file.Close()
@@ -145,91 +147,58 @@ func getIgnores(appDir string) []string {
 }
 
 func createTgz(composeContent []byte, appDir string) ([]byte, error) {
-	var buf bytes.Buffer
-	gzw := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gzw)
-
-	ignores := getIgnores(appDir)
-	warned := make(map[string]bool)
-
-	err := filepath.Walk(appDir, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("Tar: Can't stat file %s to tar: %w", appDir, err)
-		}
-
-		if fi.Mode().IsDir() {
-			return nil
-		}
-		header, err := tar.FileInfoHeader(fi, fi.Name())
-		if err != nil {
-			return err
-		}
-		if fi.Name() == "docker-compose.yml" {
-			header.Size = int64(len(composeContent))
-		}
-
-		// Handle subdirectories
-		header.Name = strings.TrimPrefix(strings.Replace(file, appDir, "", -1), string(filepath.Separator))
-		if ignores != nil {
-			for _, ignore := range ignores {
-				if match, err := filepath.Match(ignore, header.Name); err == nil && match {
-					if !warned[ignore] {
-						fmt.Println("  |-> ignoring: ", ignore)
-					}
-					warned[ignore] = true
-					return nil
-				}
-			}
-		}
-
-		if !fi.Mode().IsRegular() {
-			if fi.Mode()&os.ModeSymlink != 0 {
-				link, err := os.Readlink(header.Name)
-				if err != nil {
-					return fmt.Errorf("Tar: Can't find symlink: %s", err)
-				}
-				header.Linkname = link
-			} else {
-				// TODO handle the different types similar to
-				// https://github.com/moby/moby/blob/master/pkg/archive/archive.go#L573
-				return fmt.Errorf("Tar: Can't tar non regular types yet: %s", header.Name)
-			}
-		}
-		// reset the file's timestamps, otherwise hashes of the resultant TGZs will differ
-		// even if their content is the same
-		header.ChangeTime = time.Time{}
-		header.AccessTime = time.Time{}
-		header.ModTime = time.Time{}
-
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if fi.Name() == "docker-compose.yml" {
-			if _, err := tw.Write(composeContent); err != nil {
-				return fmt.Errorf("Unable to add docker-compose.yml to archive: %s", err)
-			}
-		} else if fi.Mode().IsRegular() {
-			f, err := os.Open(file)
-			if err != nil {
-				f.Close()
-				return err
-			}
-			if _, err := io.Copy(tw, f); err != nil {
-				return err
-			}
-			f.Close()
-		}
-
-		return nil
+	reader, err := archive.TarWithOptions(appDir, &archive.TarOptions{
+		Compression:     archive.Uncompressed,
+		ExcludePatterns: getIgnores(appDir),
 	})
-
-	tw.Close()
-	gzw.Close()
-
 	if err != nil {
 		return nil, err
 	}
+
+	composeFound := false
+	var buf bytes.Buffer
+	gzw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gzw)
+	tr := tar.NewReader(reader)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// reset the file's timestamps, otherwise hashes of the resultant
+		// TGZs will differ even if their content is the same
+		hdr.ChangeTime = time.Time{}
+		hdr.AccessTime = time.Time{}
+		hdr.ModTime = time.Time{}
+		if hdr.Name == "docker-compose.yml" {
+			composeFound = true
+			hdr.Size = int64(len(composeContent))
+			if err := tw.WriteHeader(hdr); err != nil {
+				return nil, fmt.Errorf("Unable to add docker-compose.yml header archive: %s", err)
+			}
+			if _, err := tw.Write(composeContent); err != nil {
+				return nil, fmt.Errorf("Unable to add docker-compose.yml to archive: %s", err)
+			}
+		} else {
+			if err := tw.WriteHeader(hdr); err != nil {
+				return nil, fmt.Errorf("Unable to add %s header archive: %s", hdr.Name, err)
+			}
+			if _, err := io.Copy(tw, tr); err != nil {
+				return nil, fmt.Errorf("Unable to add %s archive: %s", hdr.Name, err)
+			}
+		}
+	}
+
+	if !composeFound {
+		return nil, errors.New("A .composeappignores rule is discarding docker-compose.yml")
+	}
+
+	tw.Close()
+	gzw.Close()
 	return buf.Bytes(), nil
 }
 
@@ -263,6 +232,10 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 		fmt.Println("Pinned compose:")
 		fmt.Println(string(pinned))
 		fmt.Println("Skipping publishing for dryrun")
+
+		if err := ioutil.WriteFile("/tmp/compose-bundle.tgz", buff, 0755); err != nil {
+			return "", err
+		}
 
 		return "", nil
 	}
