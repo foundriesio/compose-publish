@@ -23,3 +23,7 @@ check:
 publish: build-static
 	gsutil cp ./bin/compose-publish gs://subscriber_registry/compose-publish
 	gsutil -m acl ch -u AllUsers:R gs://subscriber_registry/compose-publish
+
+fioapp:
+	@mkdir -p bin/
+	go build -o bin/fioapp cmd/fioapp/main.go
