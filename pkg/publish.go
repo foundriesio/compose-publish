@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/foundriesio/compose-publish/pkg/fioapp"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -75,8 +76,20 @@ func DoPublish(file, target, digestFile string, dryRun bool) error {
 		return err
 	}
 
+	fmt.Println("= Getting app layers metadata...")
+	appLayers, err := fioapp.GetLayers(ctx, svcs.(map[string]interface{}))
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("= Posting app layers manifests...")
+	layerManifests, err := fioapp.PostAppLayersManifests(ctx, target, appLayers)
+	if err != nil {
+		return err
+	}
+
 	fmt.Println("= Publishing app...")
-	dgst, err := internal.CreateApp(ctx, config, target, dryRun)
+	dgst, err := internal.CreateApp(ctx, config, target, dryRun, layerManifests)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -202,16 +203,22 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateApp(ctx context.Context, config map[string]interface{}, target string, dryRun bool) (string, error) {
+func CreateApp(ctx context.Context, config map[string]interface{}, target string, dryRun bool, layerManifests []distribution.Descriptor) (string, error) {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
 		return "", err
 	}
 
+	pinnedHash := sha256.Sum256(pinned)
+	fmt.Printf("  |-> pinned content hash: %x\n", pinnedHash)
+
 	buff, err := createTgz(pinned, "./")
 	if err != nil {
 		return "", err
 	}
+
+	archHash := sha256.Sum256(buff)
+	fmt.Printf("  |-> app archive hash: %x\n", archHash)
 
 	named, err := reference.ParseNormalizedNamed(target)
 	if err != nil {
@@ -256,13 +263,42 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	if err != nil {
 		return "", err
 	}
+
+	man, ok := manifest.(*ocischema.DeserializedManifest)
+	if !ok {
+		return "", fmt.Errorf("invalid manifest type, expected *ocischema.DeserializedManifest, got: %T", manifest)
+	}
+
+	b, err := man.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
+	manMap := make(map[string]interface{})
+	err = json.Unmarshal(b, &manMap)
+	if err != nil {
+		return "", err
+	}
+
+	manMap["manifests"] = layerManifests
+
+	b1, err := json.MarshalIndent(manMap, "", "   ")
+	if err != nil {
+		return "", err
+	}
+
+	err = man.UnmarshalJSON(b1)
+	if err != nil {
+		return "", err
+	}
+
 	svc, err := repo.Manifests(ctx, nil)
 	if err != nil {
 		return "", err
 	}
 
 	putOptions := []distribution.ManifestServiceOption{distribution.WithTag(tag)}
-	digest, err := svc.Put(ctx, manifest, putOptions...)
+	digest, err := svc.Put(ctx, man, putOptions...)
 	if err != nil {
 		return "", err
 	}
