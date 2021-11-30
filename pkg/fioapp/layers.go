@@ -16,24 +16,24 @@ import (
 	"sort"
 )
 
+type (
+	ArchManifestServices map[string]map[distribution.ManifestService]digest.Digest
+)
+
 func GetManifestService(ctx context.Context, regClient internal.RegistryClient, repoRef reference.Named) (distribution.ManifestService, error) {
 	repo, err := regClient.GetRepository(ctx, repoRef)
 	if err != nil {
 		return nil, err
 	}
 	return repo.Manifests(ctx, nil)
-
 }
 
-func GetManifestList(ctx context.Context, manifestSvc distribution.ManifestService, digest digest.Digest) (*manifestlist.DeserializedManifestList, error) {
-	manifest, err := manifestSvc.Get(ctx, digest)
+func GetBlobService(ctx context.Context, regClient internal.RegistryClient, repoRef reference.Named) (distribution.BlobStore, error) {
+	repo, err := regClient.GetRepository(ctx, repoRef)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := manifest.(*manifestlist.DeserializedManifestList); !ok {
-		return nil, fmt.Errorf("invalid manifest type, expected manifestlist.DeserializedManifestList, got: %T", manifest)
-	}
-	return manifest.(*manifestlist.DeserializedManifestList), nil
+	return repo.Blobs(ctx), nil
 }
 
 func GetManifest(ctx context.Context, manifestSvc distribution.ManifestService, digest digest.Digest) (*schema2.DeserializedManifest, error) {
@@ -71,7 +71,7 @@ func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string) (map[
 	// One image might have two or more manifests per the same architecture, it's odd, but is true, see nginx's manifest list
 	// Thus, we have to created a map of maps, arch -> image/manifest-service -> manifest-digest, to avoid inclusion
 	// more then manifest per image and per architecture
-	archToManifestList := make(map[string]map[distribution.ManifestService]digest.Digest)
+	archToManifestList := make(ArchManifestServices)
 	for _, image := range svcImages {
 		imageRef, err := reference.ParseNamed(image)
 		if err != nil {
@@ -83,16 +83,52 @@ func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string) (map[
 			return nil, err
 		}
 
-		manifestList, err := GetManifestList(ctx, imageManifestSvc, imageRef.(reference.Canonical).Digest())
+		indexManifest, err := imageManifestSvc.Get(ctx, imageRef.(reference.Canonical).Digest())
 		if err != nil {
 			return nil, err
 		}
 
-		for _, manifest := range manifestList.Manifests {
-			if _, ok := archToManifestList[manifest.Platform.Architecture]; !ok {
-				archToManifestList[manifest.Platform.Architecture] = make(map[distribution.ManifestService]digest.Digest)
+		populateFromList := func(manifestList *manifestlist.DeserializedManifestList) {
+			for _, manifest := range manifestList.Manifests {
+				if _, ok := archToManifestList[manifest.Platform.Architecture]; !ok {
+					archToManifestList[manifest.Platform.Architecture] = make(map[distribution.ManifestService]digest.Digest)
+				}
+				archToManifestList[manifest.Platform.Architecture][imageManifestSvc] = manifest.Digest
 			}
-			archToManifestList[manifest.Platform.Architecture][imageManifestSvc] = manifest.Digest
+		}
+
+		populateFromManifest := func(manifest *schema2.DeserializedManifest) error {
+			imageBlobSvc, err := GetBlobService(ctx, regClient, imageRef)
+			if err != nil {
+				return err
+			}
+			b, err := imageBlobSvc.Get(ctx, manifest.Config.Digest)
+			if err != nil {
+				return err
+			}
+			config := make(map[string]interface{})
+			err = json.Unmarshal(b, &config)
+			if err != nil {
+				return err
+			}
+			arch := config["architecture"].(string)
+			if _, ok := archToManifestList[arch]; !ok {
+				archToManifestList[arch] = make(map[distribution.ManifestService]digest.Digest)
+			}
+			archToManifestList[arch][imageManifestSvc] = imageRef.(reference.Canonical).Digest()
+			return nil
+		}
+
+		switch im := indexManifest.(type) {
+		case *manifestlist.DeserializedManifestList:
+			populateFromList(im)
+		case *schema2.DeserializedManifest:
+			err = populateFromManifest(im)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unexpected type of image manifest; image: %s, type: %T", imageRef.(reference.Canonical).String(), indexManifest)
 		}
 	}
 
