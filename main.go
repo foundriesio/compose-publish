@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	commandLine "github.com/urfave/cli/v2"
 
@@ -53,7 +54,15 @@ func main() {
 			if len(target) == 0 {
 				return errors.New("Missing required argument: TARGET:[TAG]")
 			}
-			return pkg.DoPublish(file, target, digestFile, dryRun)
+			var archList []string
+			archListStr := c.Args().Get(1)
+			if len(archListStr) == 0 {
+				log.Println("Architecture list is not specified," +
+					" intersection of all App's images architectures will be supported by App")
+			} else {
+				archList = strings.Split(archListStr, ",")
+			}
+			return pkg.DoPublish(file, target, digestFile, dryRun, archList)
 		},
 	}
 

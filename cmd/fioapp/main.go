@@ -10,14 +10,17 @@ import (
 	"github.com/foundriesio/compose-publish/pkg/fioapp"
 	"log"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
 	var composeFile string
 	var appRef string
+	var archListStr string
 
 	flag.StringVar(&composeFile, "compose-file", "docker-compose.yml", "A path to a compose file")
 	flag.StringVar(&appRef, "app-ref", "", "A reference to App's Registry Repo")
+	flag.StringVar(&archListStr, "arch-list", "", "An architecture list")
 	flag.Parse()
 
 	if len(appRef) == 0 {
@@ -37,7 +40,11 @@ func main() {
 
 	ctx := context.Background()
 
-	appLayers, err := fioapp.GetAppLayers(ctx, appServices)
+	var archList []string
+	if len(archListStr) > 0 {
+		archList = strings.Split(archListStr, ",")
+	}
+	appLayers, err := fioapp.GetAppLayers(ctx, appServices, archList)
 	if err != nil {
 		log.Fatalf("failed to get App layers: %s", err.Error())
 	}
