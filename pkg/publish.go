@@ -41,7 +41,7 @@ func loadProj(file string, config map[string]interface{}) (*compose.Project, err
 	})
 }
 
-func DoPublish(file, target, digestFile string, dryRun bool) error {
+func DoPublish(file, target, digestFile string, dryRun bool, archList []string) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -77,9 +77,19 @@ func DoPublish(file, target, digestFile string, dryRun bool) error {
 	}
 
 	fmt.Println("= Getting app layers metadata...")
-	appLayers, err := fioapp.GetLayers(ctx, svcs.(map[string]interface{}))
+	appLayers, err := fioapp.GetLayers(ctx, svcs.(map[string]interface{}), archList)
 	if err != nil {
 		return err
+	}
+
+	if len(appLayers) == 0 {
+		return fmt.Errorf("none of the factory architectures %q are supported by App images", archList)
+	}
+
+	// TODO: this check is needed in order to overcome the aklite's check on the maximum manifest size (2048)
+	// Once the new version of aklite is deployed (max manifest size = 16K) then this check can be removed or MaxArchNumb increased
+	if len(appLayers) > internal.MaxArchNumb {
+		return fmt.Errorf("app cannot support more than %d architectures, found %d", internal.MaxArchNumb, len(appLayers))
 	}
 
 	fmt.Println("= Posting app layers manifests...")

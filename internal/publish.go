@@ -28,6 +28,12 @@ import (
 	"github.com/docker/docker/pkg/archive"
 )
 
+const (
+	// limits derived from aklite's limitation on an App manifest size
+	MaxArchNumb         = 6
+	MaxManifestBodySize = 2010 // (2048 - 38) just in case
+)
+
 func iterateServices(services map[string]interface{}, proj *compose.Project, fn compose.ServiceFunc) error {
 	return proj.WithServices(nil, func(s compose.ServiceConfig) error {
 		obj := services[s.Name]
@@ -296,6 +302,12 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 		return "", err
 	}
 
+	fmt.Printf("  |-> manifest size: %d\n", len(b1))
+	// TODO: this check is needed in order to overcome the aklite's check on the maximum manifest size (2048)
+	// Once the new version of aklite is deployed (max manifest size = 16K) then this check can be removed or MaxArchNumb increased
+	if len(b1) >= MaxManifestBodySize {
+		return "", fmt.Errorf("app manifest size (%d) exceeds the maximum size limit (%d)", len(b1), MaxManifestBodySize)
+	}
 	svc, err := repo.Manifests(ctx, nil)
 	if err != nil {
 		return "", err

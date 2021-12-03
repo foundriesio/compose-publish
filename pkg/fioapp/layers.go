@@ -47,24 +47,24 @@ func GetManifest(ctx context.Context, manifestSvc distribution.ManifestService, 
 	return manifest.(*schema2.DeserializedManifest), nil
 }
 
-func GetAppLayers(ctx context.Context, services map[string]types.ServiceConfig) (map[string][]distribution.Descriptor, error) {
+func GetAppLayers(ctx context.Context, services map[string]types.ServiceConfig, archList []string) (map[string][]distribution.Descriptor, error) {
 	svcImages := make(map[string]string)
 	for svc, svcCfg := range services {
 		svcImages[svc] = svcCfg.Image
 	}
-	return GetAppLayersFromMap(ctx, svcImages)
+	return GetAppLayersFromMap(ctx, svcImages, archList)
 }
 
-func GetLayers(ctx context.Context, services map[string]interface{}) (map[string][]distribution.Descriptor, error) {
+func GetLayers(ctx context.Context, services map[string]interface{}, archList []string) (map[string][]distribution.Descriptor, error) {
 	svcImages := make(map[string]string)
 	for svc, cfg := range services {
 		svcCfg := cfg.(map[string]interface{})
 		svcImages[svc] = svcCfg["image"].(string)
 	}
-	return GetAppLayersFromMap(ctx, svcImages)
+	return GetAppLayersFromMap(ctx, svcImages, archList)
 }
 
-func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string) (map[string][]distribution.Descriptor, error) {
+func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string, archList []string) (map[string][]distribution.Descriptor, error) {
 	regClient := internal.NewRegistryClient()
 
 	// Get manifests per architecture and per image, for one architecture there should be one manifest for each service image
@@ -134,10 +134,28 @@ func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string) (map[
 
 	appLayers := make(map[string]map[string]distribution.Descriptor)
 	expectedManNumber := len(svcImages)
+	isInArchList := func(arch string) bool {
+		if len(archList) == 0 {
+			return true
+		}
+
+		for _, a := range archList {
+			if arch == a {
+				return true
+			}
+		}
+		return false
+	}
 	for arch, manifests := range archToManifestList {
 		// Shortlist architectures, we need to include only architectures for which there is one manifest per each service image
 		if len(manifests) != expectedManNumber {
 			fmt.Printf("  |-> exclude  %s architecture, some of the app images (%d images) don't have manifest for it\n", arch, expectedManNumber-len(manifests))
+			delete(archToManifestList, arch)
+			continue
+		}
+
+		if !isInArchList(arch) {
+			fmt.Printf("  |-> exclude  %s architecture since it's not in a list of the factory supported architectures: %q\n", arch, archList)
 			delete(archToManifestList, arch)
 			continue
 		}
@@ -182,7 +200,7 @@ func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string) (map[
 func ComposeAppLayersManifest(arch string, layers []distribution.Descriptor) (distribution.Manifest, *distribution.Descriptor, error) {
 	platform := v1.Platform{
 		Architecture: arch,
-		OS:           "LMP",
+		// OS:           "LMP", make manifest a bit smaller until the updated aklite is installed on every device
 	}
 
 	manifestDef := struct {
