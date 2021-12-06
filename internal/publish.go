@@ -55,6 +55,10 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		if len(image) == 0 {
 			return fmt.Errorf("Service(%s) missing 'image' attribute", name)
 		}
+		if s.Build != nil {
+			fmt.Printf("Removing service(%s) 'build' stanza\n", name)
+			delete(svc, "build")
+		}
 
 		fmt.Printf("Pinning %s(%s)\n", name, image)
 		named, err := reference.ParseNormalizedNamed(image)
