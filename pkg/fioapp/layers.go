@@ -231,7 +231,7 @@ func ComposeAppLayersManifest(arch string, layers []distribution.Descriptor) (di
 	return man, &desc, nil
 }
 
-func PostAppLayersManifests(ctx context.Context, appRef string, layers map[string][]distribution.Descriptor) ([]distribution.Descriptor, error) {
+func PostAppLayersManifests(ctx context.Context, appRef string, layers map[string][]distribution.Descriptor, dryRun bool) ([]distribution.Descriptor, error) {
 	// sort layer lists by arch
 
 	manifestDescArchs := make([]string, len(layers))
@@ -262,16 +262,20 @@ func PostAppLayersManifests(ctx context.Context, appRef string, layers map[strin
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("  |-> posting a layer manifest for architecture: %s...", arch)
-		digest, err := manSvc.Put(ctx, manifest)
-		if err != nil {
-			return nil, err
+		if dryRun {
+			fmt.Printf("  |-> skipping layer manifest publishing for dryrun\n")
+		} else {
+			fmt.Printf("  |-> posting a layer manifest for architecture: %s...", arch)
+			digest, err := manSvc.Put(ctx, manifest)
+			if err != nil {
+				return nil, err
+			}
+			if digest.Encoded() != (*desc).Digest.Encoded() {
+				return nil, fmt.Errorf("digest of the posted manifest doesn't match to the composed manifest digest")
+			}
+			fmt.Printf("OK |-> digest: %s\n", digest)
+			manDescrs[ii] = *desc
 		}
-		if digest.Encoded() != (*desc).Digest.Encoded() {
-			return nil, fmt.Errorf("digest of the posted manifest doesn't match to the composed manifest digest")
-		}
-		fmt.Printf("OK |-> digest: %s\n", digest)
-		manDescrs[ii] = *desc
 		ii++
 	}
 	return manDescrs, nil
