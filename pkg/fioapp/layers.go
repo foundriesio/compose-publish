@@ -245,7 +245,7 @@ func PostAppLayersManifests(ctx context.Context, appRef string, layers map[strin
 
 	regClient := internal.NewRegistryClient()
 
-	ref, err := reference.ParseNamed(appRef)
+	ref, err := reference.ParseNormalizedNamed(appRef)
 	if err != nil {
 		return nil, err
 	}
