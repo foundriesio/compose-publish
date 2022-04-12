@@ -26,6 +26,7 @@ import (
 	"github.com/docker/docker/builder/dockerignore"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/opencontainers/go-digest"
 )
 
 const (
@@ -76,27 +77,34 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		if err != nil {
 			return err
 		}
-		namedTagged, ok := named.(reference.Tagged)
-		if !ok {
-			return fmt.Errorf("Invalid image reference(%s): Images must be tagged. e.g %s:stable", image, image)
+
+		var digest digest.Digest
+		switch v := named.(type) {
+		case reference.Tagged:
+			tag := v.Tag()
+			desc, err := repo.Tags(ctx).Get(ctx, tag)
+			if err != nil {
+				return fmt.Errorf("Unable to find image reference(%s): %s", image, err)
+			}
+			digest = desc.Digest
+		case reference.Digested:
+			digest = v.Digest()
+		default:
+			return fmt.Errorf("Invalid reference type for %s: %T", named, named)
 		}
-		tag := namedTagged.Tag()
-		desc, err := repo.Tags(ctx).Get(ctx, tag)
-		if err != nil {
-			return fmt.Errorf("Unable to find image reference(%s): %s", image, err)
-		}
+
 		mansvc, err := repo.Manifests(ctx, nil)
 		if err != nil {
 			return fmt.Errorf("Unable to get image manifests(%s): %s", image, err)
 		}
-		man, err := mansvc.Get(ctx, desc.Digest)
+		man, err := mansvc.Get(ctx, digest)
 		if err != nil {
 			return fmt.Errorf("Unable to find image manifest(%s): %s", image, err)
 		}
 
 		// TODO - we should find the intersection of platforms so
 		// that we can denote the platforms this app can run on
-		pinned := reference.Domain(named) + "/" + reference.Path(named) + "@" + desc.Digest.String()
+		pinned := reference.Domain(named) + "/" + reference.Path(named) + "@" + digest.String()
 
 		switch mani := man.(type) {
 		case *manifestlist.DeserializedManifestList:

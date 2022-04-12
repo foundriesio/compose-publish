@@ -93,7 +93,7 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string) 
 	}
 
 	fmt.Println("= Posting app layers manifests...")
-	layerManifests, err := fioapp.PostAppLayersManifests(ctx, target, appLayers)
+	layerManifests, err := fioapp.PostAppLayersManifests(ctx, target, appLayers, dryRun)
 	if err != nil {
 		return err
 	}
