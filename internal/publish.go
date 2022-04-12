@@ -140,14 +140,13 @@ func PinServiceConfigs(cli *client.Client, ctx context.Context, services map[str
 			return err
 		}
 
-		labels, ok := svc["labels"]
-		if !ok {
-			labels = make(map[string]interface{})
-			svc["labels"] = labels
-		}
 		srvh := sha256.Sum256(marshalled)
 		fmt.Printf("   |-> %s : %x\n", s.Name, srvh)
-		labels.(map[string]interface{})["io.compose-spec.config-hash"] = fmt.Sprintf("%x", srvh)
+		if s.Labels == nil {
+			s.Labels = make(map[string]string)
+		}
+		s.Labels["io.compose-spec.config-hash"] = fmt.Sprintf("%x", srvh)
+		svc["labels"] = s.Labels
 		return nil
 	})
 }
