@@ -90,7 +90,7 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		case reference.Digested:
 			digest = v.Digest()
 		default:
-			return fmt.Errorf("Invalid reference type for %s: %T", named, named)
+			return fmt.Errorf("Invalid reference type for %s: %T. Images must be pinned to a `:<tag>` or `@sha256:<hash>`", named, named)
 		}
 
 		mansvc, err := repo.Manifests(ctx, nil)
