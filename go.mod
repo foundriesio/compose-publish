@@ -19,7 +19,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.2
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/urfave/cli/v2 v2.1.1
+	github.com/urfave/cli/v2 v2.11.0
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e // indirect
 	google.golang.org/grpc v1.32.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0
