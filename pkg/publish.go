@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/foundriesio/compose-publish/pkg/fioapp"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/foundriesio/compose-publish/pkg/fioapp"
 
 	"github.com/compose-spec/compose-go/loader"
 	compose "github.com/compose-spec/compose-go/types"
@@ -25,7 +26,7 @@ func getClient() (*client.Client, error) {
 	return cli, nil
 }
 
-func loadProj(file string, config map[string]interface{}) (*compose.Project, error) {
+func loadProj(file string, content []byte) (*compose.Project, error) {
 	env := make(map[string]string)
 	for _, val := range os.Environ() {
 		parts := strings.Split(val, "=")
@@ -33,7 +34,7 @@ func loadProj(file string, config map[string]interface{}) (*compose.Project, err
 	}
 
 	var files []compose.ConfigFile
-	files = append(files, compose.ConfigFile{Filename: file, Config: config})
+	files = append(files, compose.ConfigFile{Filename: file, Content: content})
 	return loader.Load(compose.ConfigDetails{
 		WorkingDir:  ".",
 		ConfigFiles: files,
@@ -57,7 +58,7 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string) 
 
 	ctx := context.Background()
 
-	proj, err := loadProj(file, config)
+	proj, err := loadProj(file, b)
 	if err != nil {
 		return err
 	}
