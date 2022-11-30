@@ -50,7 +50,7 @@ func iterateServices(services map[string]interface{}, proj *compose.Project, fn 
 	})
 }
 
-func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project) error {
+func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project, pinnedImages map[string]digest.Digest) error {
 	regc := NewRegistryClient()
 
 	return iterateServices(services, proj, func(s compose.ServiceConfig) error {
@@ -90,7 +90,10 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 		case reference.Digested:
 			digest = v.Digest()
 		default:
-			return fmt.Errorf("Invalid reference type for %s: %T. Images must be pinned to a `:<tag>` or `@sha256:<hash>`", named, named)
+			var ok bool
+			if digest, ok = pinnedImages[named.Name()]; !ok {
+				return fmt.Errorf("Invalid reference type for %s: %T. Images must be pinned to a `:<tag>` or `@sha256:<hash>`", named, named)
+			}
 		}
 
 		mansvc, err := repo.Manifests(ctx, nil)

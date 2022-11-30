@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opencontainers/go-digest"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -42,7 +43,7 @@ func loadProj(file string, content []byte) (*compose.Project, error) {
 	})
 }
 
-func DoPublish(file, target, digestFile string, dryRun bool, archList []string) error {
+func DoPublish(file, target, digestFile string, dryRun bool, archList []string, pinnedImages map[string]digest.Digest) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -68,7 +69,7 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string) 
 	if !ok {
 		return errors.New("Unable to find 'services' section of compose file")
 	}
-	if err := internal.PinServiceImages(cli, ctx, svcs.(map[string]interface{}), proj); err != nil {
+	if err := internal.PinServiceImages(cli, ctx, svcs.(map[string]interface{}), proj, pinnedImages); err != nil {
 		return err
 	}
 
