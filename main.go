@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/docker/distribution/reference"
+	"github.com/opencontainers/go-digest"
 	"log"
 	"os"
 	"strings"
@@ -22,6 +24,7 @@ func main() {
 	var file string
 	var digestFile string
 	var dryRun bool
+	var pinnedImageURIs []string
 
 	fmt.Print(banner)
 	app := &commandLine.App{
@@ -48,6 +51,15 @@ func main() {
 				Usage:       "Show what would be done, but don't actually publish",
 				Destination: &dryRun,
 			},
+			&commandLine.MultiStringFlag{
+				Target: &commandLine.StringSliceFlag{
+					Name:     "pinned-images",
+					Aliases:  []string{"i"},
+					Required: false,
+					Usage:    "",
+				},
+				Destination: &pinnedImageURIs,
+			},
 		},
 		Action: func(c *commandLine.Context) error {
 			target := c.Args().Get(0)
@@ -62,7 +74,19 @@ func main() {
 			} else {
 				archList = strings.Split(archListStr, ",")
 			}
-			return pkg.DoPublish(file, target, digestFile, dryRun, archList)
+			pinnedImages := map[string]digest.Digest{}
+			for _, uri := range pinnedImageURIs {
+				named, err := reference.ParseNormalizedNamed(uri)
+				if err != nil {
+					return errors.New("Invalid image URI specified in `pinned-images`: " + err.Error())
+				}
+				if digested, ok := named.(reference.Digested); ok {
+					pinnedImages[named.Name()] = digested.Digest()
+				} else {
+					return errors.New("Image URI specified in `pinned-images` is not digested: " + uri)
+				}
+			}
+			return pkg.DoPublish(file, target, digestFile, dryRun, archList, pinnedImages)
 		},
 	}
 
