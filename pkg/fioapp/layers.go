@@ -11,6 +11,7 @@ import (
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/manifest"
 	"github.com/docker/distribution/manifest/manifestlist"
+	"github.com/docker/distribution/manifest/ocischema"
 	"github.com/docker/distribution/manifest/schema2"
 	"github.com/foundriesio/compose-publish/internal"
 	"github.com/opencontainers/go-digest"
@@ -35,17 +36,6 @@ func GetBlobService(ctx context.Context, regClient internal.RegistryClient, repo
 		return nil, err
 	}
 	return repo.Blobs(ctx), nil
-}
-
-func GetManifest(ctx context.Context, manifestSvc distribution.ManifestService, digest digest.Digest) (*schema2.DeserializedManifest, error) {
-	manifest, err := manifestSvc.Get(ctx, digest)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := manifest.(*schema2.DeserializedManifest); !ok {
-		return nil, fmt.Errorf("invalid manifest type, expected schema2.DeserializedManifest, got: %T", manifest)
-	}
-	return manifest.(*schema2.DeserializedManifest), nil
 }
 
 func GetAppLayers(ctx context.Context, services map[string]types.ServiceConfig, archList []string) (map[string][]distribution.Descriptor, error) {
@@ -167,11 +157,20 @@ func GetAppLayersFromMap(ctx context.Context, svcImages map[string]string, archL
 		// different images can consists of the same layers (layer intersection across images)
 		appLayers[arch] = make(map[string]distribution.Descriptor)
 		for manSvc, d := range manifests {
-			manifest, err := GetManifest(ctx, manSvc, d)
+			manifest, err := manSvc.Get(ctx, d)
 			if err != nil {
 				return nil, err
 			}
-			for _, layer := range manifest.Layers {
+			var layers []distribution.Descriptor
+			switch v := manifest.(type) {
+			case *schema2.DeserializedManifest:
+				layers = v.Layers
+			case *ocischema.DeserializedManifest:
+				layers = v.Layers
+			default:
+				return nil, fmt.Errorf("unsupport manifest type: %T", manifest)
+			}
+			for _, layer := range layers {
 				appLayers[arch][layer.Digest.Encoded()] = layer
 			}
 		}
