@@ -223,7 +223,7 @@ func createTgz(composeContent []byte, appDir string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func CreateApp(ctx context.Context, config map[string]interface{}, target string, dryRun bool, layerManifests []distribution.Descriptor) (string, error) {
+func CreateApp(ctx context.Context, config map[string]interface{}, target string, dryRun bool, layerManifests []distribution.Descriptor, appLayersMetaData []byte) (string, error) {
 	pinned, err := yaml.Marshal(config)
 	if err != nil {
 		return "", err
@@ -272,11 +272,23 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 	if err != nil {
 		return "", err
 	}
-	fmt.Println("  |-> app: ", desc.Digest.String())
+	fmt.Println("  |-> app blob: ", desc.Digest.String())
 
 	mb := ocischema.NewManifestBuilder(blobStore, []byte{}, map[string]string{"compose-app": "v1"})
 	if err := mb.AppendReference(desc); err != nil {
 		return "", err
+	}
+
+	if appLayersMetaData != nil {
+		if d, err := blobStore.Put(ctx, "application/json", appLayersMetaData); err == nil {
+			d.Annotations = map[string]string{"layers-meta": "v1"}
+			if err := mb.AppendReference(d); err != nil {
+				return "", fmt.Errorf("failed to add App layers meta descriptor to the App manifest: %s", err.Error())
+			}
+			fmt.Println("  |-> app layers meta: ", d.Digest.String())
+		} else {
+			return "", fmt.Errorf("failed to put App layers meta to the App blob store: %s", err.Error())
+		}
 	}
 
 	manifest, err := mb.Build(ctx)
