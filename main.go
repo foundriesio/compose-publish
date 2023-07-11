@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/docker/distribution/reference"
-	"github.com/opencontainers/go-digest"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/docker/distribution/reference"
+	"github.com/opencontainers/go-digest"
 
 	commandLine "github.com/urfave/cli/v2"
 
@@ -25,6 +26,7 @@ func main() {
 	var digestFile string
 	var dryRun bool
 	var pinnedImageURIs []string
+	var layersMetaFile string
 
 	fmt.Print(banner)
 	app := &commandLine.App{
@@ -60,6 +62,13 @@ func main() {
 				},
 				Destination: &pinnedImageURIs,
 			},
+			&commandLine.StringFlag{
+				Name:        "layers-meta",
+				Aliases:     []string{"l"},
+				Required:    false,
+				Usage:       "Json file containing App layers' metadata (size, usage)",
+				Destination: &layersMetaFile,
+			},
 		},
 		Action: func(c *commandLine.Context) error {
 			target := c.Args().Get(0)
@@ -86,7 +95,7 @@ func main() {
 					return errors.New("Image URI specified in `pinned-images` is not digested: " + uri)
 				}
 			}
-			return pkg.DoPublish(file, target, digestFile, dryRun, archList, pinnedImages)
+			return pkg.DoPublish(file, target, digestFile, dryRun, archList, pinnedImages, layersMetaFile)
 		},
 	}
 

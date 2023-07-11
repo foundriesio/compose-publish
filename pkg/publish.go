@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opencontainers/go-digest"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/foundriesio/compose-publish/internal"
+	"github.com/opencontainers/go-digest"
 
 	"github.com/foundriesio/compose-publish/pkg/fioapp"
 
 	"github.com/compose-spec/compose-go/loader"
 	compose "github.com/compose-spec/compose-go/types"
 	"github.com/docker/docker/client"
-
-	"github.com/foundriesio/compose-publish/internal"
 )
 
 func getClient() (*client.Client, error) {
@@ -43,7 +43,7 @@ func loadProj(file string, content []byte) (*compose.Project, error) {
 	})
 }
 
-func DoPublish(file, target, digestFile string, dryRun bool, archList []string, pinnedImages map[string]digest.Digest) error {
+func DoPublish(file, target, digestFile string, dryRun bool, archList []string, pinnedImages map[string]digest.Digest, layersMetaFile string) error {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -100,8 +100,16 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string, 
 		return err
 	}
 
+	var appLayersMetaBytes []byte
+	if len(layersMetaFile) > 0 {
+		appLayersMetaBytes, err = fioapp.GetAppLayersMeta(layersMetaFile, appLayers)
+		if err != nil {
+			return err
+		}
+	}
+
 	fmt.Println("= Publishing app...")
-	dgst, err := internal.CreateApp(ctx, config, target, dryRun, layerManifests)
+	dgst, err := internal.CreateApp(ctx, config, target, dryRun, layerManifests, appLayersMetaBytes)
 	if err != nil {
 		return err
 	}

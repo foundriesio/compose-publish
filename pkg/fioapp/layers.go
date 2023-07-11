@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
+
+	"github.com/foundriesio/compose-publish/internal"
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/distribution/distribution/v3/reference"
@@ -13,13 +16,22 @@ import (
 	"github.com/docker/distribution/manifest/manifestlist"
 	"github.com/docker/distribution/manifest/ocischema"
 	"github.com/docker/distribution/manifest/schema2"
-	"github.com/foundriesio/compose-publish/internal"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type (
 	ArchManifestServices map[string]map[distribution.ManifestService]digest.Digest
+	LayerMeta            struct {
+		Size        int64 `json:"size"`
+		Usage       int64 `json:"usage"`
+		ArchiveSize int64 `json:"archive_size,omitempty"`
+	}
+	ArchLayersMeta struct {
+		FsBlockSize uint32                      `json:"fs_block_size"`
+		Layers      map[digest.Digest]LayerMeta `json:"layers"`
+	}
+	LayersMeta map[string]ArchLayersMeta
 )
 
 func GetManifestService(ctx context.Context, regClient internal.RegistryClient, repoRef reference.Named) (distribution.ManifestService, error) {
@@ -279,4 +291,39 @@ func PostAppLayersManifests(ctx context.Context, appRef string, layers map[strin
 		ii++
 	}
 	return manDescrs, nil
+}
+
+func GetAppLayersMeta(layersMetaFile string, appLayers map[string][]distribution.Descriptor) ([]byte, error) {
+	var layersMeta LayersMeta
+	appLayersMeta := LayersMeta{}
+
+	fmt.Println("= Parsing all apps layers metadata...")
+	if b, err := os.ReadFile(layersMetaFile); err == nil {
+		if err := json.Unmarshal(b, &layersMeta); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, err
+	}
+
+	fmt.Println("= Getting App layers metadata...")
+	for arch, layers := range appLayers {
+		if _, exists := layersMeta[arch]; !exists {
+			return nil, fmt.Errorf("no metadata about app layers of the given arch: %s", arch)
+		}
+		appLayersMeta[arch] = ArchLayersMeta{FsBlockSize: layersMeta[arch].FsBlockSize, Layers: map[digest.Digest]LayerMeta{}}
+		for _, l := range layers {
+			if _, exists := layersMeta[arch].Layers[l.Digest]; !exists {
+				return nil, fmt.Errorf("app layer hasn't been built;"+
+					" one of the App images must have been changed since tagging and before pinning;"+
+					" layer digest: %s", l.Digest)
+			}
+			appLayersMeta[arch].Layers[l.Digest] = LayerMeta{
+				Size:        layersMeta[arch].Layers[l.Digest].Size,
+				Usage:       layersMeta[arch].Layers[l.Digest].Usage,
+				ArchiveSize: l.Size,
+			}
+		}
+	}
+	return json.Marshal(appLayersMeta)
 }
