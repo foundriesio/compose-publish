@@ -60,7 +60,7 @@ func main() {
 		}
 	}
 
-	layerManifests, err := fioapp.PostAppLayersManifests(ctx, appRef, appLayers)
+	layerManifests, err := fioapp.PostAppLayersManifests(ctx, appRef, appLayers, false)
 	if err != nil {
 		log.Fatalf("failed to generate or post App layers manifest: %s", err.Error())
 	}
