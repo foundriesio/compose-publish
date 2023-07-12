@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opencontainers/go-digest"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/opencontainers/go-digest"
 
 	"github.com/foundriesio/compose-publish/pkg/fioapp"
 
