@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/docker/distribution/reference"
-	"github.com/opencontainers/go-digest"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/docker/distribution/reference"
+	"github.com/opencontainers/go-digest"
 
 	commandLine "github.com/urfave/cli/v2"
 

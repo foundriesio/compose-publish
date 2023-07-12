@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/compose-spec/compose-go/cli"
-	"github.com/compose-spec/compose-go/types"
-	"github.com/foundriesio/compose-publish/pkg/fioapp"
 	"log"
 	"path/filepath"
 	"strings"
+
+	"github.com/compose-spec/compose-go/cli"
+	"github.com/compose-spec/compose-go/types"
+	"github.com/foundriesio/compose-publish/pkg/fioapp"
 )
 
 func main() {
