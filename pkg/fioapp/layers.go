@@ -9,13 +9,13 @@ import (
 
 	"github.com/foundriesio/compose-publish/internal"
 
-	"github.com/compose-spec/compose-go/types"
-	"github.com/distribution/distribution/v3/reference"
-	"github.com/docker/distribution"
-	"github.com/docker/distribution/manifest"
-	"github.com/docker/distribution/manifest/manifestlist"
-	"github.com/docker/distribution/manifest/ocischema"
-	"github.com/docker/distribution/manifest/schema2"
+	"github.com/compose-spec/compose-go/v2/types"
+	"github.com/distribution/distribution/v3"
+	"github.com/distribution/distribution/v3/manifest"
+	"github.com/distribution/distribution/v3/manifest/manifestlist"
+	"github.com/distribution/distribution/v3/manifest/ocischema"
+	"github.com/distribution/distribution/v3/manifest/schema2"
+	"github.com/distribution/reference"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -320,9 +320,9 @@ func GetAppLayersMeta(layersMetaFile string, appLayers map[string][]distribution
 			}
 			appLayersMeta[arch].Layers[l.Digest] = LayerMeta{
 				// Layer's diff size (diff = layer's part of rootfs )
-				Size:        layersMeta[arch].Layers[l.Digest].Size,
+				Size: layersMeta[arch].Layers[l.Digest].Size,
 				// Disk usage by the layer's data (rootfs) and metadata
-				Usage:       layersMeta[arch].Layers[l.Digest].Usage,
+				Usage: layersMeta[arch].Layers[l.Digest].Usage,
 				// Layer's archive/blob size
 				ArchiveSize: l.Size,
 			}

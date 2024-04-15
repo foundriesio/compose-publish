@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compose-spec/compose-go/cli"
-	"github.com/compose-spec/compose-go/types"
+	"github.com/compose-spec/compose-go/v2/cli"
+	"github.com/compose-spec/compose-go/v2/types"
 	"github.com/foundriesio/compose-publish/pkg/fioapp"
 )
 
@@ -33,11 +33,7 @@ func main() {
 		log.Fatalf("failed to parse App: %s", err.Error())
 	}
 
-	svcs, err := appProj.Services.MarshalYAML()
-	if err != nil {
-		log.Fatalf("failed to marshal App services into map: %s", err.Error())
-	}
-	appServices := svcs.(map[string]types.ServiceConfig)
+	appServices := appProj.Services
 
 	ctx := context.Background()
 
@@ -79,7 +75,7 @@ func getAppProject(composeFile string) (*types.Project, error) {
 		WorkingDir:  wd,
 		ConfigPaths: []string{composeFile},
 	}
-	prj, err := cli.ProjectFromOptions(&opts)
+	prj, err := cli.ProjectFromOptions(context.Background(), &opts)
 	if err != nil {
 		return nil, err
 	}
