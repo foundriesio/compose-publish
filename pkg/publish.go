@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -13,9 +12,9 @@ import (
 
 	"github.com/foundriesio/compose-publish/pkg/fioapp"
 
-	"github.com/compose-spec/compose-go/loader"
-	compose "github.com/compose-spec/compose-go/types"
-	"github.com/docker/docker/client"
+	"github.com/compose-spec/compose-go/v2/loader"
+	compose "github.com/compose-spec/compose-go/v2/types"
+	"github.com/moby/moby/client"
 )
 
 func getClient() (*client.Client, error) {
@@ -44,7 +43,7 @@ func loadProj(file string, content []byte) (*compose.Project, error) {
 }
 
 func DoPublish(file, target, digestFile string, dryRun bool, archList []string, pinnedImages map[string]digest.Digest, layersMetaFile string) error {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -115,7 +114,7 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string, 
 		return err
 	}
 	if len(digestFile) > 0 {
-		return ioutil.WriteFile(digestFile, []byte(dgst), 0o640)
+		return os.WriteFile(digestFile, []byte(dgst), 0o640)
 	}
 	return nil
 }

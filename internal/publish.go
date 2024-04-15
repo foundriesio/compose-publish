@@ -10,22 +10,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
-	compose "github.com/compose-spec/compose-go/types"
-	"github.com/docker/distribution"
-	"github.com/docker/distribution/manifest/manifestlist"
-	"github.com/docker/distribution/manifest/ocischema"
-	"github.com/docker/distribution/manifest/schema2"
-	"github.com/docker/distribution/reference"
-	"github.com/docker/docker/builder/dockerignore"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
+	compose "github.com/compose-spec/compose-go/v2/types"
+	"github.com/distribution/distribution/v3"
+	"github.com/distribution/distribution/v3/manifest/manifestlist"
+	"github.com/distribution/distribution/v3/manifest/ocischema"
+	"github.com/distribution/distribution/v3/manifest/schema2"
+	"github.com/distribution/reference"
+	"github.com/moby/moby/client"
+	"github.com/moby/moby/pkg/archive"
+	"github.com/moby/patternmatcher/ignorefile"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -36,7 +35,7 @@ const (
 )
 
 func iterateServices(services map[string]interface{}, proj *compose.Project, fn compose.ServiceFunc) error {
-	return proj.WithServices(nil, func(s compose.ServiceConfig) error {
+	return proj.ForEachService(nil, func(name string, s *compose.ServiceConfig) error {
 		obj := services[s.Name]
 		_, ok := obj.(map[string]interface{})
 		if !ok {
@@ -46,15 +45,14 @@ func iterateServices(services map[string]interface{}, proj *compose.Project, fn 
 			}
 			return fmt.Errorf("Service(%s) has invalid format", s.Name)
 		}
-		return fn(s)
+		return fn(s.Name, s)
 	})
 }
 
 func PinServiceImages(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project, pinnedImages map[string]digest.Digest) error {
 	regc := NewRegistryClient()
 
-	return iterateServices(services, proj, func(s compose.ServiceConfig) error {
-		name := s.Name
+	return iterateServices(services, proj, func(name string, s *compose.ServiceConfig) error {
 		obj := services[name]
 		svc := obj.(map[string]interface{})
 
@@ -134,7 +132,7 @@ func PinServiceImages(cli *client.Client, ctx context.Context, services map[stri
 }
 
 func PinServiceConfigs(cli *client.Client, ctx context.Context, services map[string]interface{}, proj *compose.Project) error {
-	return iterateServices(services, proj, func(s compose.ServiceConfig) error {
+	return iterateServices(services, proj, func(name string, s *compose.ServiceConfig) error {
 		obj := services[s.Name]
 		svc := obj.(map[string]interface{})
 
@@ -159,7 +157,7 @@ func getIgnores(appDir string) []string {
 	if err != nil {
 		return []string{}
 	}
-	ignores, _ := dockerignore.ReadAll(file)
+	ignores, _ := ignorefile.ReadAll(file)
 	file.Close()
 	if ignores != nil {
 		ignores = append(ignores, ".composeappignores")
@@ -260,7 +258,7 @@ func CreateApp(ctx context.Context, config map[string]interface{}, target string
 		fmt.Println(string(pinned))
 		fmt.Println("Skipping publishing for dryrun")
 
-		if err := ioutil.WriteFile("/tmp/compose-bundle.tgz", buff, 0755); err != nil {
+		if err := os.WriteFile("/tmp/compose-bundle.tgz", buff, 0755); err != nil {
 			return "", err
 		}
 
