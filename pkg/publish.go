@@ -105,7 +105,7 @@ func DoPublish(file, target, digestFile string, dryRun bool, archList []string, 
 		fmt.Println("= Getting app layers metadata...")
 		appLayersMetaBytes, err = fioapp.GetAppLayersMeta(layersMetaFile, appLayers)
 		if err != nil {
-			return err
+			fmt.Printf("= Failed to get app layers metadata: %s\n", err.Error())
 		}
 	}
 
