@@ -31,7 +31,7 @@ type RegistryClient struct {
 
 func ResolveAuthConfig(ctx context.Context, index *registrytypes.IndexInfo) types.AuthConfig {
 	cfg := config.LoadDefaultConfigFile(os.Stderr)
-	a, _ := cfg.GetAuthConfig(index.Name)
+	a, _ := cfg.GetAuthConfig(registry.GetAuthConfigKey(index))
 	return types.AuthConfig(a)
 }
 
